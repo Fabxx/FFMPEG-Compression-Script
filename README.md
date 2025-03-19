@@ -1,5 +1,6 @@
 # Dependencies
 - parallel (linux)
+- zenity for UI
 
 # Behavior
 
