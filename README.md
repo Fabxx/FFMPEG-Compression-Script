@@ -20,7 +20,7 @@
   
 - Concatenates the generated webm segments into a final `webm` video file.
 
-NOTE: Cores and threads are automatically obtained.
+NOTE: Cores and threads are automatically obtained. Special characters are handled.
 
 # Test results
 
