@@ -1,20 +1,13 @@
 #!/bin/bash
 
-type zenity &>/dev/null
-zenityPresent=$?
+# Dependency check
+for cmd in zenity parallel; do
+    type "$cmd" &>/dev/null || { echo "$cmd must be installed."; exit 1; }
+done
 
-type parallel &>/dev/null
-parallelPresent=$?
-
-if [ $zenityPresent -ne 0 ]; then
-    echo "Zenity must be installed to display UI."
-    exit 1
-fi
-
-if [ $parallelPresent -ne 0 ]; then
-    echo "Parallel must be installed to use multithreading."
-    exit 1
-fi
+# Get all available cores and threads on system
+threads=$(nproc --all)
+physical_cores=$(lscpu | grep "^Core(s) per socket:" | awk '{print $4}')
 
 path=$(zenity --title="Select the folder containing the videos" --directory --file-selection)
 
@@ -23,10 +16,13 @@ if [[ -z "$path" ]]; then
     exit 1
 fi
 
-mkdir -p "$path/out"
+cd "$path"
 
-# Loop sui file
+mkdir -p "out"
+
+# For each file that is not webm, create segments of 30 seconds, convert them in webm and then concatenate the segments.
 for file in "$path"/*; do
+    
     if [[ ! -f "$file" ]]; then
         continue
     fi
@@ -41,20 +37,21 @@ for file in "$path"/*; do
         continue
     fi
 
-    ffmpeg -i "$file" -c copy -segment_time 30 -f segment -reset_timestamps 1 "${path}/${filename_noext}"_%04d."$extension"
+    ffmpeg -i "$file" -c copy -segment_time 30 -f segment -reset_timestamps 1 "$path/$filename_noext"_%04d."$extension"
 
-    if [[ ! -e "${path}/${filename_noext}_0000.$extension" ]]; then
+     if [[ ! -e "$path/$filename_noext"_0000."$extension" ]]; then
         echo "Error: segmentation failed for $file"
         continue
     fi
 
-    # Webm conversion, handle special chars in files
-    parallel -j 8 ffmpeg -i "{}" -c:v libvpx-vp9 -b:v 0 -crf 40 -c:a libopus -ac 2 \
-        -threads 16 -row-mt 1 -cpu-used 8 -tile-columns 4 -frame-parallel 1 "{}.webm" ::: "${path}/${filename_noext}"_*."$extension"
+     find . -maxdepth 1 -type f ! -name '*.webm' -print0 | parallel -0 -j $physical_cores --bar \
+     ffmpeg -i "{}" -c:v libvpx-vp9 -b:v 0 -crf 40 -c:a libopus -ac 2 \
+     -threads $threads -row-mt 1 -cpu-used $physical_cores -tile-columns 4 -frame-parallel 1 "{}.webm" ::: "$path/$filename_noext"_*."$extension"
 
-    find "$path" -maxdepth 1 -name "${filename_noext}_*.webm" -print0 | sort -zV | awk -v ORS='' '{print "file \x27" $0 "\x27\n"}' > file_list.txt
+    ls *.webm | awk '{print "file \x27" $0 "\x27"}' > file_list.txt
 
-    ffmpeg -f concat -safe 0 -i file_list.txt -c copy "$path/out/${filename_noext}.webm"
+    ffmpeg -f concat -safe 0 -i "file_list.txt" -c copy "out/$filename_noext.webm"
 
-    rm "${path}/${filename_noext}"_*."$extension" "${path}/${filename_noext}"_*.webm file_list.txt
+    rm "$filename_noext"_*."$extension" "$filename_noext"_*.webm "file_list.txt"
+
 done
