@@ -48,7 +48,8 @@ for file in "$path"/*; do
      ffmpeg -i "{}" -c:v libvpx-vp9 -b:v 0 -crf 40 -c:a libopus -ac 2 \
      -threads $threads -row-mt 1 -cpu-used $physical_cores -tile-columns 4 -frame-parallel 1 "{}.webm" ::: "$path/$filename_noext"_*."$extension"
 
-    ls *.webm | awk '{print "file \x27" $0 "\x27"}' > file_list.txt
+    # Escape apostrophe char to avoid concat failure when parting file_list.txt
+    ls *.webm | sed "s/'/'\\\\''/g" | awk '{print "file \x27" $0 "\x27"}' > file_list.txt
 
     ffmpeg -f concat -safe 0 -i "file_list.txt" -c copy "out/$filename_noext.webm"
 
