@@ -1,4 +1,8 @@
-# Dependencies
+# WARNING
+
+The program uses 100% of the CPU to support parallel encoding, be aware of CPU temperatures!
+
+# Dependencies (Linux)
 - parallel (linux)
 - zenity for UI
 
